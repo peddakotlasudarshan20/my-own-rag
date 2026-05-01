@@ -11,8 +11,9 @@ const CONTACT = {
     "Hi Sudarshan, I am interested in hiring you for a web development project.",
 };
 
-const PROJECTS = [
-  {
+const PROJECTS = {
+  mindBloom: {
+    keywords: ["mind bloom", "mindbloom"],
     name: "Mind Bloom",
     description:
       "A mental wellness application that helps users manage stress through an interactive UI and Firebase-backed features.",
@@ -20,7 +21,8 @@ const PROJECTS = [
     github: "https://github.com/peddakotlasudarshan20/mind-bloom",
     live: "https://mindbloom-9b7b5.web.app/",
   },
-  {
+  socialMedia: {
+    keywords: ["social media", "social app"],
     name: "Social Media App",
     description:
       "A full-stack social media platform with authentication, posting, and interaction features.",
@@ -28,7 +30,8 @@ const PROJECTS = [
     github: "https://github.com/peddakotlasudarshan20/social-media",
     live: "https://social-app-94b55.web.app/",
   },
-  {
+  summarizer: {
+    keywords: ["text summarizer", "summarizer", "ai text"],
     name: "AI Text Summarizer",
     description:
       "An AI web tool that summarizes long text with API integration for faster reading and better clarity.",
@@ -36,7 +39,7 @@ const PROJECTS = [
     github: "https://github.com/peddakotlasudarshan20/Text-summarizer",
     live: "",
   },
-];
+};
 
 const chatForm = document.getElementById("chatForm");
 const messageInput = document.getElementById("messageInput");
@@ -53,7 +56,12 @@ const suggestionChips = document.querySelectorAll(".suggestion-chip");
 
 let activeMode = "portfolio";
 let isSending = false;
+let lastSendAt = 0;
+let recognition = null;
+let voiceTimeout = null;
 let histories = loadHistories();
+
+initHistoryRail();
 
 function loadHistories() {
   const fallback = { portfolio: [], general: [] };
@@ -71,36 +79,24 @@ function loadHistories() {
 
 function saveHistories() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(histories));
+  renderHistoryRail();
 }
 
 function getSmartGreeting() {
   const hour = new Date().getHours();
 
-  if (hour < 12) {
-    return "Good morning.";
-  }
-
-  if (hour < 17) {
-    return "Good afternoon.";
-  }
-
+  if (hour < 12) return "Good morning.";
+  if (hour < 17) return "Good afternoon.";
   return "Good evening.";
 }
 
 function getWelcomeMessage(mode) {
-  const greeting = getSmartGreeting();
-
-  if (mode === "general") {
-    return {
-      sender: "bot",
-      text: `${greeting} General AI Mode is ready. Ask a focused question, or type "generate image of ...".`,
-      timestamp: new Date().toISOString(),
-    };
-  }
-
   return {
     sender: "bot",
-    text: `${greeting} Portfolio Mode is ready. Ask about my projects, skills, experience, services, or contact links.`,
+    text:
+      mode === "general"
+        ? `${getSmartGreeting()} General AI Mode is ready.\n• Ask a focused question\n• Or type "generate image of ..."`
+        : `${getSmartGreeting()} Portfolio Mode is ready.\n• Ask about projects, skills, services, or contact links\n• Switch modes anytime without mixing chats`,
     timestamp: new Date().toISOString(),
   };
 }
@@ -115,17 +111,19 @@ function ensureHistory(mode) {
 function renderHistory() {
   ensureHistory(activeMode);
   messageArea.innerHTML = "";
-  histories[activeMode].forEach((message) => renderMessage(message));
+  histories[activeMode].forEach((message, index) => renderMessage(message, index));
   scrollToBottom();
 }
 
-function renderMessage(message) {
+function renderMessage(message, index = 0) {
   const item = document.createElement("article");
   item.className = `message ${message.sender}-message`;
+  item.dataset.index = String(index);
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = message.text;
+  bubble.textContent =
+    message.sender === "bot" ? formatBotResponse(message.text) : message.text;
 
   if (message.imageUrl) {
     const image = document.createElement("img");
@@ -137,7 +135,7 @@ function renderMessage(message) {
   }
 
   if (message.sender === "bot") {
-    getProjectsFromText(message.text).forEach((project) => {
+    getProjectsByKeys(message.projectKeys || []).forEach((project) => {
       bubble.appendChild(createProjectCard(project));
     });
 
@@ -167,8 +165,52 @@ function renderMessage(message) {
 function addMessage(message) {
   histories[activeMode].push(message);
   saveHistories();
-  renderMessage(message);
+  renderMessage(message, histories[activeMode].length - 1);
   scrollToBottom();
+}
+
+function formatBotResponse(text) {
+  const cleaned = String(text || "").trim();
+  if (!cleaned) return "I could not generate a response.";
+
+  const lines = cleaned
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const first = lines.shift() || cleaned;
+  const linkLines = [];
+  const bulletLines = [];
+
+  lines.forEach((line) => {
+    if (/https?:\/\//i.test(line)) {
+      linkLines.push(line.replace(/^[-•*\s]+/, ""));
+    } else {
+      bulletLines.push(line.replace(/^[-•*\s]+/, ""));
+    }
+  });
+
+  if (!bulletLines.length && first.length > 120) {
+    const sentences = first.split(/(?<=[.!?])\s+/);
+    const direct = sentences.shift();
+    bulletLines.push(...sentences);
+    return buildStructuredText(direct, bulletLines, linkLines);
+  }
+
+  return buildStructuredText(first, bulletLines, linkLines);
+}
+
+function buildStructuredText(firstLine, bullets, links) {
+  const parts = [firstLine];
+
+  if (bullets.length) {
+    parts.push(bullets.map((item) => `• ${item}`).join("\n"));
+  }
+
+  if (links.length) {
+    parts.push(links.map((item) => `• ${item}`).join("\n"));
+  }
+
+  return parts.join("\n\n");
 }
 
 function addTypingIndicator() {
@@ -208,7 +250,10 @@ function setLoading(isLoading) {
 }
 
 function setMode(mode) {
+  if (isSending) return;
+
   activeMode = mode;
+  messageInput.value = "";
   modeDescription.textContent =
     mode === "portfolio"
       ? "Personal portfolio assistant"
@@ -225,15 +270,18 @@ function setMode(mode) {
   });
 
   renderHistory();
+  renderHistoryRail();
   messageInput.focus();
 }
 
 async function sendMessage(text) {
-  if (isSending) {
-    return;
-  }
+  const now = Date.now();
+  if (isSending || now - lastSendAt < 600) return;
+  lastSendAt = now;
 
   const quickReply = getEasterEggResponse(text);
+  const projectKeys = getProjectKeysFromText(text);
+  const showHireCard = shouldShowHireCard(text);
 
   addMessage({
     sender: "user",
@@ -247,7 +295,7 @@ async function sendMessage(text) {
 
   try {
     if (quickReply) {
-      await delay(450);
+      await delay(500);
       removeTypingIndicator();
       addMessage({
         sender: "bot",
@@ -267,7 +315,7 @@ async function sendMessage(text) {
       error: "Invalid response from server",
     }));
 
-    await delay(360);
+    await delay(420);
     removeTypingIndicator();
 
     addMessage({
@@ -276,7 +324,8 @@ async function sendMessage(text) {
         ? data.response || "I could not generate a response."
         : data.error || "Something went wrong. Please try again.",
       imageUrl: response.ok ? data.imageUrl : "",
-      showHireCard: isHiringIntent(text),
+      projectKeys,
+      showHireCard,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -285,7 +334,8 @@ async function sendMessage(text) {
     addMessage({
       sender: "bot",
       text: getOfflineFallback(text),
-      showHireCard: isHiringIntent(text),
+      projectKeys,
+      showHireCard,
       timestamp: new Date().toISOString(),
     });
   } finally {
@@ -354,7 +404,7 @@ function createHireCard() {
   const card = document.createElement("section");
   card.className = "hire-card";
   card.innerHTML = `
-    <strong>Hire Sudarshan</strong>
+    <strong>Want to work together?</strong>
     <p>I am open to freelance, internships, full-time roles, and client projects.</p>
     <div class="action-row">
       <a class="hire-link whatsapp" href="https://wa.me/?text=${encodeURIComponent(
@@ -367,52 +417,63 @@ function createHireCard() {
   return card;
 }
 
-function getProjectsFromText(text) {
-  if (activeMode !== "portfolio") {
-    return [];
+function getProjectKeysFromText(text) {
+  const lowerText = text.toLowerCase();
+
+  if (/\b(project|projects|work|portfolio)\b/i.test(text)) {
+    return Object.keys(PROJECTS);
   }
 
-  return PROJECTS.filter((project) =>
-    text.toLowerCase().includes(project.name.toLowerCase()),
-  );
+  return Object.entries(PROJECTS)
+    .filter(([, project]) =>
+      project.keywords.some((keyword) => lowerText.includes(keyword)),
+    )
+    .map(([key]) => key);
 }
 
-function isHiringIntent(text) {
-  return /\b(hire|hiring|freelance|client project|work with you|available)\b/i.test(text);
+function getProjectsByKeys(keys) {
+  if (activeMode !== "portfolio") return [];
+  return [...new Set(keys)].map((key) => PROJECTS[key]).filter(Boolean);
+}
+
+function shouldShowHireCard(text) {
+  return /\b(hire|hiring|freelance|client project|work with you|available|skills|services|projects?)\b/i.test(
+    text,
+  );
 }
 
 function getEasterEggResponse(text) {
   const normalized = text.trim().toLowerCase();
 
   if (normalized.includes("are you human")) {
-    return "Not human, but I am built to represent Sudarshan clearly and helpfully.";
+    return "Not human, but built to represent Sudarshan clearly.\n• I answer using his portfolio data\n• I can also help in General AI Mode";
   }
 
   if (normalized.includes("who made you")) {
-    return "I was built as Sudarshan's AI portfolio assistant using a JavaScript frontend, a Vercel API, Groq, and structured RAG data.";
+    return "Sudarshan built this assistant as a portfolio AI project.\n• Frontend: HTML, CSS, JavaScript\n• Backend: Vercel API with Groq\n• Knowledge: structured RAG data";
   }
 
   return "";
 }
 
 function getOfflineFallback(text) {
-  if (isHiringIntent(text)) {
-    return "Yes, I am open to freelance and client projects. You can contact me through LinkedIn, email, or WhatsApp share below.";
+  if (shouldShowHireCard(text)) {
+    return "Yes, Sudarshan is open to work.\n• Freelance projects\n• Internships and full-time roles\n• Frontend, full-stack, and API integration work";
   }
 
   if (/github/i.test(text)) {
-    return `GitHub: ${CONTACT.github}`;
+    return `Here is Sudarshan's GitHub.\n\n• GitHub: ${CONTACT.github}`;
   }
 
   if (/linkedin|contact/i.test(text)) {
-    return `LinkedIn: ${CONTACT.linkedin}\nPortfolio: ${CONTACT.portfolio}`;
+    return `You can contact Sudarshan here.\n\n• LinkedIn: ${CONTACT.linkedin}\n• Portfolio: ${CONTACT.portfolio}`;
   }
 
   if (/project/i.test(text)) {
-    return "My main projects are Mind Bloom, Social Media App, and AI Text Summarizer.";
+    return "Sudarshan's main projects are ready to view.\n• Mind Bloom\n• Social Media App\n• AI Text Summarizer";
   }
 
-  return "I am temporarily offline, but your chat is saved. Please try again in a moment.";
+  return "I am temporarily offline.\n• Your chat is saved\n• Please try again in a moment";
 }
 
 function trackQuestion(question) {
@@ -434,24 +495,84 @@ function startVoiceInput() {
     return;
   }
 
-  const recognition = new SpeechRecognition();
+  if (recognition) {
+    recognition.stop();
+    return;
+  }
+
+  recognition = new SpeechRecognition();
   recognition.lang = "en-US";
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
+
   voiceButton.classList.add("listening");
-  voiceButton.textContent = "On";
+  voiceButton.textContent = "Stop";
+  voiceButton.title = "Stop listening";
+  messageInput.placeholder = "Listening...";
 
   recognition.onresult = (event) => {
     messageInput.value = event.results[0][0].transcript;
     messageInput.focus();
   };
 
+  recognition.onerror = () => {
+    messageInput.value = "Microphone permission was blocked or unavailable.";
+  };
+
   recognition.onend = () => {
+    clearTimeout(voiceTimeout);
+    voiceTimeout = null;
+    recognition = null;
     voiceButton.classList.remove("listening");
     voiceButton.textContent = "Mic";
+    voiceButton.title = "Voice input";
+    messageInput.placeholder =
+      activeMode === "portfolio"
+        ? "Ask about Sudarshan's projects, skills, or contact links..."
+        : "Ask anything, or type: generate image of modern app UI";
   };
 
   recognition.start();
+  voiceTimeout = setTimeout(() => {
+    recognition?.stop();
+  }, 9000);
+}
+
+function initHistoryRail() {
+  const app = document.querySelector(".chat-app");
+  if (!app || document.querySelector(".history-rail")) return;
+
+  const rail = document.createElement("aside");
+  rail.className = "history-rail";
+  rail.innerHTML = `
+    <div class="history-title">Older Chats</div>
+    <div id="historyList" class="history-list"></div>
+  `;
+  app.prepend(rail);
+}
+
+function renderHistoryRail() {
+  const list = document.getElementById("historyList");
+  if (!list) return;
+
+  list.innerHTML = "";
+  histories[activeMode]
+    .filter((message) => message.sender === "user")
+    .slice(-8)
+    .reverse()
+    .forEach((message) => {
+      const button = document.createElement("button");
+      button.className = "history-item";
+      button.type = "button";
+      button.textContent = message.text.slice(0, 54);
+      button.addEventListener("click", () => {
+        const index = histories[activeMode].indexOf(message);
+        document
+          .querySelector(`[data-index="${index}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      list.appendChild(button);
+    });
 }
 
 function formatTime(timestamp) {
@@ -475,9 +596,7 @@ chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
   const text = messageInput.value.trim();
-  if (!text) {
-    return;
-  }
+  if (!text) return;
 
   messageInput.value = "";
   sendMessage(text);
@@ -489,9 +608,9 @@ modeTabs.forEach((tab) => {
 
 suggestionChips.forEach((chip) => {
   chip.addEventListener("click", () => {
+    if (isSending) return;
     const prompt = chip.dataset.prompt;
-    messageInput.value = prompt;
-    messageInput.focus();
+    messageInput.value = "";
     sendMessage(prompt);
   });
 });
