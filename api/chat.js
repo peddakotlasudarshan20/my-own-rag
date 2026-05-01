@@ -72,6 +72,11 @@ User question: ${message}
     const errorMessage =
       error.response?.data?.error?.message || "Something went wrong";
 
+    console.error("Groq API error:", {
+      statusCode,
+      message: errorMessage,
+    });
+
     return res.status(statusCode).json({ error: errorMessage });
   }
 }

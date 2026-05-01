@@ -72,7 +72,9 @@ async function sendMessage(userMessage) {
       body: JSON.stringify({ message: userMessage }),
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({
+      error: "Invalid response from server",
+    }));
 
     removeTypingMessage();
 
