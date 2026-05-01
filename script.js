@@ -1,5 +1,42 @@
 const STORAGE_KEY = "sudarshan-ai-chat-history";
+const ANALYTICS_KEY = "sudarshan-ai-analytics";
 const API_URL = "https://my-own-rag.vercel.app/api/chat";
+
+const CONTACT = {
+  email: "naniramsudarshan@gmail.com",
+  linkedin: "https://www.linkedin.com/in/sudarshan-peddakotla-6851052a7",
+  github: "https://github.com/peddakotlasudarshan20",
+  portfolio: "https://peddakotlasudarshan20.github.io/",
+  whatsappText:
+    "Hi Sudarshan, I am interested in hiring you for a web development project.",
+};
+
+const PROJECTS = [
+  {
+    name: "Mind Bloom",
+    description:
+      "A mental wellness application that helps users manage stress through an interactive UI and Firebase-backed features.",
+    techStack: ["HTML", "CSS", "JavaScript", "Firebase"],
+    github: "https://github.com/peddakotlasudarshan20/mind-bloom",
+    live: "https://mindbloom-9b7b5.web.app/",
+  },
+  {
+    name: "Social Media App",
+    description:
+      "A full-stack social media platform with authentication, posting, and interaction features.",
+    techStack: ["React", "Node.js", "Express.js", "MongoDB", "Firebase"],
+    github: "https://github.com/peddakotlasudarshan20/social-media",
+    live: "https://social-app-94b55.web.app/",
+  },
+  {
+    name: "AI Text Summarizer",
+    description:
+      "An AI web tool that summarizes long text with API integration for faster reading and better clarity.",
+    techStack: ["JavaScript", "API Integration"],
+    github: "https://github.com/peddakotlasudarshan20/Text-summarizer",
+    live: "",
+  },
+];
 
 const chatForm = document.getElementById("chatForm");
 const messageInput = document.getElementById("messageInput");
@@ -10,6 +47,9 @@ const modeTabs = document.querySelectorAll(".mode-tab");
 const clearChatButton = document.getElementById("clearChat");
 const downloadChatButton = document.getElementById("downloadChat");
 const shareChatButton = document.getElementById("shareChat");
+const copyChatButton = document.getElementById("copyChat");
+const voiceButton = document.getElementById("voiceButton");
+const suggestionChips = document.querySelectorAll(".suggestion-chip");
 
 let activeMode = "portfolio";
 let isSending = false;
@@ -33,18 +73,34 @@ function saveHistories() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(histories));
 }
 
+function getSmartGreeting() {
+  const hour = new Date().getHours();
+
+  if (hour < 12) {
+    return "Good morning.";
+  }
+
+  if (hour < 17) {
+    return "Good afternoon.";
+  }
+
+  return "Good evening.";
+}
+
 function getWelcomeMessage(mode) {
+  const greeting = getSmartGreeting();
+
   if (mode === "general") {
     return {
       sender: "bot",
-      text: "General AI Mode is ready. Ask a focused question, or type “generate image of ...”.",
+      text: `${greeting} General AI Mode is ready. Ask a focused question, or type "generate image of ...".`,
       timestamp: new Date().toISOString(),
     };
   }
 
   return {
     sender: "bot",
-    text: "Portfolio Mode is ready. Ask about my projects, skills, experience, services, or contact links.",
+    text: `${greeting} Portfolio Mode is ready. Ask about my projects, skills, experience, services, or contact links.`,
     timestamp: new Date().toISOString(),
   };
 }
@@ -59,11 +115,7 @@ function ensureHistory(mode) {
 function renderHistory() {
   ensureHistory(activeMode);
   messageArea.innerHTML = "";
-
-  histories[activeMode].forEach((message) => {
-    renderMessage(message);
-  });
-
+  histories[activeMode].forEach((message) => renderMessage(message));
   scrollToBottom();
 }
 
@@ -82,6 +134,16 @@ function renderMessage(message) {
     image.alt = message.text || "Generated image";
     image.loading = "lazy";
     bubble.appendChild(image);
+  }
+
+  if (message.sender === "bot") {
+    getProjectsFromText(message.text).forEach((project) => {
+      bubble.appendChild(createProjectCard(project));
+    });
+
+    if (message.showHireCard) {
+      bubble.appendChild(createHireCard());
+    }
   }
 
   const meta = document.createElement("div");
@@ -117,6 +179,7 @@ function addTypingIndicator() {
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.innerHTML = `
+    <span class="typing-label">typing...</span>
     <span class="typing" aria-label="Assistant is typing">
       <span></span><span></span><span></span>
     </span>
@@ -137,6 +200,9 @@ function setLoading(isLoading) {
   messageInput.disabled = isLoading;
   modeTabs.forEach((tab) => {
     tab.disabled = isLoading;
+  });
+  suggestionChips.forEach((chip) => {
+    chip.disabled = isLoading;
   });
   sendButton.textContent = isLoading ? "Sending" : "Send";
 }
@@ -167,16 +233,30 @@ async function sendMessage(text) {
     return;
   }
 
+  const quickReply = getEasterEggResponse(text);
+
   addMessage({
     sender: "user",
     text,
     timestamp: new Date().toISOString(),
   });
+  trackQuestion(text);
 
   addTypingIndicator();
   setLoading(true);
 
   try {
+    if (quickReply) {
+      await delay(450);
+      removeTypingIndicator();
+      addMessage({
+        sender: "bot",
+        text: quickReply,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -187,6 +267,7 @@ async function sendMessage(text) {
       error: "Invalid response from server",
     }));
 
+    await delay(360);
     removeTypingIndicator();
 
     addMessage({
@@ -195,13 +276,16 @@ async function sendMessage(text) {
         ? data.response || "I could not generate a response."
         : data.error || "Something went wrong. Please try again.",
       imageUrl: response.ok ? data.imageUrl : "",
+      showHireCard: isHiringIntent(text),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    await delay(300);
     removeTypingIndicator();
     addMessage({
       sender: "bot",
-      text: "I could not connect to the API. Please try again in a moment.",
+      text: getOfflineFallback(text),
+      showHireCard: isHiringIntent(text),
       timestamp: new Date().toISOString(),
     });
   } finally {
@@ -217,32 +301,157 @@ function clearActiveChat() {
 }
 
 function downloadActiveChat() {
-  const data = {
-    mode: activeMode,
-    exportedAt: new Date().toISOString(),
-    messages: histories[activeMode],
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json",
-  });
+  const blob = new Blob([getActiveChatText()], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `sudarshan-${activeMode}-chat.json`;
+  link.download = `sudarshan-${activeMode}-chat.txt`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
 function shareActiveChat() {
-  const text = histories[activeMode]
-    .map((message) => `${message.sender.toUpperCase()}: ${message.text}`)
-    .join("\n\n");
-  const shareText = encodeURIComponent(text || "Sudarshan AI chat");
+  const shareText = encodeURIComponent(getActiveChatText() || "Sudarshan AI chat");
   window.open(`https://wa.me/?text=${shareText}`, "_blank", "noopener,noreferrer");
 }
 
-function copyText(text) {
-  navigator.clipboard?.writeText(text);
+function copyActiveChat() {
+  copyText(getActiveChatText());
+}
+
+async function copyText(text) {
+  await navigator.clipboard?.writeText(text);
+}
+
+function getActiveChatText() {
+  return histories[activeMode]
+    .map((message) => `${message.sender.toUpperCase()}: ${message.text}`)
+    .join("\n\n");
+}
+
+function createProjectCard(project) {
+  const card = document.createElement("section");
+  card.className = "project-card";
+  card.innerHTML = `
+    <strong>${project.name}</strong>
+    <p>${project.description}</p>
+    <div class="tag-row">
+      ${project.techStack.map((tech) => `<span class="tech-tag">${tech}</span>`).join("")}
+    </div>
+    <div class="action-row">
+      <a class="card-link" href="${project.github}" target="_blank" rel="noreferrer">GitHub</a>
+      ${
+        project.live
+          ? `<a class="card-link" href="${project.live}" target="_blank" rel="noreferrer">Live</a>`
+          : ""
+      }
+    </div>
+  `;
+  return card;
+}
+
+function createHireCard() {
+  const card = document.createElement("section");
+  card.className = "hire-card";
+  card.innerHTML = `
+    <strong>Hire Sudarshan</strong>
+    <p>I am open to freelance, internships, full-time roles, and client projects.</p>
+    <div class="action-row">
+      <a class="hire-link whatsapp" href="https://wa.me/?text=${encodeURIComponent(
+        CONTACT.whatsappText,
+      )}" target="_blank" rel="noreferrer">WhatsApp</a>
+      <a class="hire-link email" href="mailto:${CONTACT.email}">Email</a>
+      <a class="hire-link" href="${CONTACT.linkedin}" target="_blank" rel="noreferrer">LinkedIn</a>
+    </div>
+  `;
+  return card;
+}
+
+function getProjectsFromText(text) {
+  if (activeMode !== "portfolio") {
+    return [];
+  }
+
+  return PROJECTS.filter((project) =>
+    text.toLowerCase().includes(project.name.toLowerCase()),
+  );
+}
+
+function isHiringIntent(text) {
+  return /\b(hire|hiring|freelance|client project|work with you|available)\b/i.test(text);
+}
+
+function getEasterEggResponse(text) {
+  const normalized = text.trim().toLowerCase();
+
+  if (normalized.includes("are you human")) {
+    return "Not human, but I am built to represent Sudarshan clearly and helpfully.";
+  }
+
+  if (normalized.includes("who made you")) {
+    return "I was built as Sudarshan's AI portfolio assistant using a JavaScript frontend, a Vercel API, Groq, and structured RAG data.";
+  }
+
+  return "";
+}
+
+function getOfflineFallback(text) {
+  if (isHiringIntent(text)) {
+    return "Yes, I am open to freelance and client projects. You can contact me through LinkedIn, email, or WhatsApp share below.";
+  }
+
+  if (/github/i.test(text)) {
+    return `GitHub: ${CONTACT.github}`;
+  }
+
+  if (/linkedin|contact/i.test(text)) {
+    return `LinkedIn: ${CONTACT.linkedin}\nPortfolio: ${CONTACT.portfolio}`;
+  }
+
+  if (/project/i.test(text)) {
+    return "My main projects are Mind Bloom, Social Media App, and AI Text Summarizer.";
+  }
+
+  return "I am temporarily offline, but your chat is saved. Please try again in a moment.";
+}
+
+function trackQuestion(question) {
+  const analytics = JSON.parse(localStorage.getItem(ANALYTICS_KEY) || "[]");
+  analytics.push({
+    question,
+    mode: activeMode,
+    timestamp: new Date().toISOString(),
+  });
+  localStorage.setItem(ANALYTICS_KEY, JSON.stringify(analytics.slice(-100)));
+}
+
+function startVoiceInput() {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    messageInput.value = "Voice input is not supported in this browser.";
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  voiceButton.classList.add("listening");
+  voiceButton.textContent = "On";
+
+  recognition.onresult = (event) => {
+    messageInput.value = event.results[0][0].transcript;
+    messageInput.focus();
+  };
+
+  recognition.onend = () => {
+    voiceButton.classList.remove("listening");
+    voiceButton.textContent = "Mic";
+  };
+
+  recognition.start();
 }
 
 function formatTime(timestamp) {
@@ -256,6 +465,10 @@ function scrollToBottom() {
   requestAnimationFrame(() => {
     messageArea.scrollTop = messageArea.scrollHeight;
   });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 chatForm.addEventListener("submit", (event) => {
@@ -274,8 +487,19 @@ modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => setMode(tab.dataset.mode));
 });
 
+suggestionChips.forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const prompt = chip.dataset.prompt;
+    messageInput.value = prompt;
+    messageInput.focus();
+    sendMessage(prompt);
+  });
+});
+
 clearChatButton.addEventListener("click", clearActiveChat);
 downloadChatButton.addEventListener("click", downloadActiveChat);
 shareChatButton.addEventListener("click", shareActiveChat);
+copyChatButton.addEventListener("click", copyActiveChat);
+voiceButton.addEventListener("click", startVoiceInput);
 
 setMode(activeMode);

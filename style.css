@@ -168,6 +168,39 @@ h1 {
     var(--bg);
 }
 
+.suggestions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 18px 0;
+  background: var(--panel);
+}
+
+.suggestion-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  background: #ffffff;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.suggestion-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(23, 105, 224, 0.42);
+  background: #f4f8ff;
+}
+
+.suggestion-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+}
+
 .empty-state {
   margin: auto;
   max-width: 540px;
@@ -220,6 +253,74 @@ h1 {
   border-bottom-left-radius: 5px;
 }
 
+.project-card,
+.hire-card {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.project-card strong,
+.hire-card strong {
+  font-size: 15px;
+}
+
+.project-card p,
+.hire-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.tag-row,
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tech-tag {
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #17515a;
+  font-size: 12px;
+  font-weight: 800;
+  background: #e5f7f6;
+}
+
+.card-link,
+.hire-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border-radius: 9px;
+  padding: 0 10px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  background: var(--primary);
+}
+
+.hire-link.whatsapp {
+  background: #128c7e;
+}
+
+.hire-link.email {
+  background: #5f6b7a;
+}
+
+.card-link:hover,
+.hire-link:hover {
+  filter: brightness(0.94);
+  transform: translateY(-1px);
+}
+
 .meta {
   display: flex;
   align-items: center;
@@ -260,6 +361,13 @@ h1 {
   min-width: 48px;
 }
 
+.typing-label {
+  margin-right: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .typing span {
   width: 7px;
   height: 7px;
@@ -278,7 +386,7 @@ h1 {
 
 .composer {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 10px;
   padding: 14px 18px;
   border-top: 1px solid var(--line);
@@ -305,6 +413,18 @@ h1 {
   min-width: 96px;
   color: #ffffff;
   background: var(--primary);
+}
+
+.composer .voice-button {
+  min-width: 54px;
+  color: var(--primary);
+  background: var(--panel-soft);
+}
+
+.composer .voice-button.listening {
+  color: #ffffff;
+  background: var(--accent);
+  animation: listenPulse 1s infinite;
 }
 
 .composer button:hover {
@@ -355,6 +475,12 @@ h1 {
   }
 }
 
+@keyframes listenPulse {
+  50% {
+    box-shadow: 0 0 0 6px rgba(15, 159, 143, 0.12);
+  }
+}
+
 @media (max-width: 768px) {
   .app-shell {
     padding: 12px;
@@ -376,6 +502,10 @@ h1 {
 
   .icon-button {
     flex: 1;
+  }
+
+  .suggestions {
+    padding: 10px 12px 0;
   }
 
   .message {
@@ -420,12 +550,21 @@ h1 {
   }
 
   .composer {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto auto;
     padding: 12px;
   }
 
   .composer button {
     min-height: 44px;
-    width: 100%;
+    min-width: 70px;
+  }
+
+  .composer .voice-button {
+    min-width: 48px;
+  }
+
+  .project-card,
+  .hire-card {
+    padding: 11px;
   }
 }

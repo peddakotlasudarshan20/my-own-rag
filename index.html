@@ -22,6 +22,9 @@
             <button id="shareChat" class="icon-button" type="button" title="Share chat">
               Share
             </button>
+            <button id="copyChat" class="icon-button" type="button" title="Copy chat">
+              Copy
+            </button>
             <button id="downloadChat" class="icon-button" type="button" title="Download chat">
               Download
             </button>
@@ -52,6 +55,21 @@
 
         <div id="messageArea" class="message-area" aria-live="polite"></div>
 
+        <div class="suggestions" aria-label="Suggested prompts">
+          <button class="suggestion-chip" type="button" data-prompt="Show my projects">
+            Show my projects
+          </button>
+          <button class="suggestion-chip" type="button" data-prompt="What skills do I have?">
+            What skills do I have?
+          </button>
+          <button class="suggestion-chip" type="button" data-prompt="Can I hire you?">
+            Can I hire you?
+          </button>
+          <button class="suggestion-chip" type="button" data-prompt="Give my GitHub">
+            Give my GitHub
+          </button>
+        </div>
+
         <form id="chatForm" class="composer">
           <input
             id="messageInput"
@@ -60,6 +78,9 @@
             autocomplete="off"
             required
           />
+          <button id="voiceButton" class="voice-button" type="button" title="Voice input">
+            Mic
+          </button>
           <button id="sendButton" type="submit">Send</button>
         </form>
       </section>
