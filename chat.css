@@ -23,7 +23,7 @@ body {
   width: min(920px, 100%);
   height: min(760px, calc(100vh - 48px));
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
   overflow: hidden;
   border: 1px solid rgba(25, 40, 60, 0.1);
   border-radius: 24px;
@@ -99,6 +99,40 @@ body {
   scroll-behavior: smooth;
 }
 
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 16px 14px;
+  padding: 6px;
+  border: 1px solid rgba(25, 40, 60, 0.1);
+  border-radius: 16px;
+  background: rgba(241, 246, 252, 0.92);
+}
+
+.mode-button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  color: #536274;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  background: transparent;
+  transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.mode-button:hover {
+  color: #17202a;
+}
+
+.mode-button.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1877f2, #14b8a6);
+  box-shadow: 0 10px 20px rgba(24, 119, 242, 0.18);
+}
+
 .message {
   display: flex;
   animation: messageIn 260ms ease both;
@@ -120,6 +154,15 @@ body {
   line-height: 1.5;
   box-shadow: 0 8px 24px rgba(20, 32, 48, 0.08);
   white-space: pre-wrap;
+}
+
+.generated-image {
+  display: block;
+  width: min(100%, 420px);
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(25, 40, 60, 0.1);
+  box-shadow: 0 12px 28px rgba(20, 32, 48, 0.12);
 }
 
 .user-message .message-bubble {
@@ -291,6 +334,15 @@ body {
   .chat-form {
     gap: 8px;
     padding: 12px;
+  }
+
+  .mode-switch {
+    margin: 0 12px 12px;
+  }
+
+  .mode-button {
+    min-height: 40px;
+    font-size: 13px;
   }
 
   .chat-form input {

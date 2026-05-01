@@ -13,7 +13,7 @@
           <div class="bot-avatar" aria-hidden="true">S</div>
           <div>
             <h1>Sudarshan AI</h1>
-            <p>Portfolio assistant</p>
+            <p id="modeLabel">Portfolio assistant</p>
           </div>
           <span class="status">
             <span class="status-dot"></span>
@@ -28,6 +28,25 @@
               education, experience, goals, and links.
             </div>
           </article>
+        </div>
+
+        <div class="mode-switch" aria-label="Chat mode">
+          <button
+            class="mode-button active"
+            type="button"
+            data-mode="portfolio"
+            aria-pressed="true"
+          >
+            Portfolio Mode
+          </button>
+          <button
+            class="mode-button"
+            type="button"
+            data-mode="general"
+            aria-pressed="false"
+          >
+            General AI Mode
+          </button>
         </div>
 
         <form id="chatForm" class="chat-form">
