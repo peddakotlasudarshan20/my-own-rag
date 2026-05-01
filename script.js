@@ -3,7 +3,7 @@ const ANALYTICS_KEY = "sudarshan-ai-analytics";
 const API_URL = "https://my-own-rag.vercel.app/api/chat";
 
 const CONTACT = {
-  email: "naniramsudarshan@gmail.com",
+  email: "sudarshanpeddakotla@gmail.com",
   linkedin: "https://www.linkedin.com/in/sudarshan-peddakotla-6851052a7",
   github: "https://github.com/peddakotlasudarshan20",
   portfolio: "https://peddakotlasudarshan20.github.io/",
@@ -55,31 +55,75 @@ const voiceButton = document.getElementById("voiceButton");
 const suggestionChips = document.querySelectorAll(".suggestion-chip");
 
 let activeMode = "portfolio";
+let activeSessionId = null;
 let isSending = false;
 let lastSendAt = 0;
 let recognition = null;
 let voiceTimeout = null;
-let histories = loadHistories();
+let pendingRequest = null;
+let sessions = loadSessions();
 
 initHistoryRail();
 
-function loadHistories() {
-  const fallback = { portfolio: [], general: [] };
+function generateUUID() {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function loadSessions() {
+  const fallback = { portfolio: { sessions: [], activeSessionId: null }, general: { sessions: [], activeSessionId: null } };
 
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return {
-      portfolio: Array.isArray(saved?.portfolio) ? saved.portfolio : [],
-      general: Array.isArray(saved?.general) ? saved.general : [],
-    };
+    if (saved?.portfolio?.sessions && saved?.general?.sessions) {
+      return {
+        portfolio: { sessions: Array.isArray(saved.portfolio.sessions) ? saved.portfolio.sessions : [], activeSessionId: saved.portfolio.activeSessionId || null },
+        general: { sessions: Array.isArray(saved.general.sessions) ? saved.general.sessions : [], activeSessionId: saved.general.activeSessionId || null },
+      };
+    }
+    return fallback;
   } catch (error) {
     return fallback;
   }
 }
 
-function saveHistories() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(histories));
+function saveSessions() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
   renderHistoryRail();
+}
+
+function getActiveSession() {
+  const modeData = sessions[activeMode];
+  if (!modeData?.activeSessionId) return null;
+  return modeData.sessions.find(s => s.id === modeData.activeSessionId);
+}
+
+function createNewSession(firstMessage) {
+  const sessionId = generateUUID();
+  const title = firstMessage.text.slice(0, 50).trim();
+  const session = {
+    id: sessionId,
+    title: title || "New Chat",
+    messages: [getWelcomeMessage(activeMode)],
+    createdAt: new Date().toISOString(),
+  };
+  
+  sessions[activeMode].sessions.push(session);
+  sessions[activeMode].activeSessionId = sessionId;
+  saveSessions();
+  return session;
+}
+
+function addMessageToSession(message) {
+  let session = getActiveSession();
+  if (!session) {
+    createNewSession(message);
+    session = getActiveSession();
+  }
+  
+  if (session) {
+    session.messages.push(message);
+    saveSessions();
+  }
 }
 
 function getSmartGreeting() {
@@ -101,18 +145,33 @@ function getWelcomeMessage(mode) {
   };
 }
 
-function ensureHistory(mode) {
-  if (histories[mode].length === 0) {
-    histories[mode].push(getWelcomeMessage(mode));
-    saveHistories();
+function renderSession() {
+  const session = getActiveSession();
+  messageArea.innerHTML = "";
+  
+  if (!session || !session.messages || session.messages.length === 0) {
+    const emptyMsg = getWelcomeMessage(activeMode);
+    renderMessage(emptyMsg, 0);
+  } else {
+    session.messages.forEach((message, index) => renderMessage(message, index));
   }
+  
+  scrollToBottom();
 }
 
-function renderHistory() {
-  ensureHistory(activeMode);
-  messageArea.innerHTML = "";
-  histories[activeMode].forEach((message, index) => renderMessage(message, index));
-  scrollToBottom();
+function convertLinksToClickable(text) {
+  const urlPattern = /(https?:\/\/[^\s]+)/gi;
+  const parts = [];
+  let lastIndex = 0;
+
+  text.replace(urlPattern, (match, url, offset) => {
+    parts.push(text.slice(lastIndex, offset));
+    parts.push(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="bot-link">${url}</a>`);
+    lastIndex = offset + match.length;
+  });
+
+  parts.push(text.slice(lastIndex));
+  return parts.join("");
 }
 
 function renderMessage(message, index = 0) {
@@ -122,8 +181,13 @@ function renderMessage(message, index = 0) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent =
-    message.sender === "bot" ? formatBotResponse(message.text) : message.text;
+  
+  if (message.sender === "bot") {
+    const formattedText = formatBotResponse(message.text);
+    bubble.innerHTML = convertLinksToClickable(formattedText);
+  } else {
+    bubble.textContent = message.text;
+  }
 
   if (message.imageUrl) {
     const image = document.createElement("img");
@@ -163,9 +227,8 @@ function renderMessage(message, index = 0) {
 }
 
 function addMessage(message) {
-  histories[activeMode].push(message);
-  saveHistories();
-  renderMessage(message, histories[activeMode].length - 1);
+  addMessageToSession(message);
+  renderMessage(message, (getActiveSession()?.messages.length || 1) - 1);
   scrollToBottom();
 }
 
@@ -253,6 +316,7 @@ function setMode(mode) {
   if (isSending) return;
 
   activeMode = mode;
+  activeSessionId = sessions[mode].activeSessionId;
   messageInput.value = "";
   modeDescription.textContent =
     mode === "portfolio"
@@ -269,14 +333,14 @@ function setMode(mode) {
     tab.setAttribute("aria-selected", String(isActive));
   });
 
-  renderHistory();
+  renderSession();
   renderHistoryRail();
   messageInput.focus();
 }
 
 async function sendMessage(text) {
   const now = Date.now();
-  if (isSending || now - lastSendAt < 600) return;
+  if (isSending || now - lastSendAt < 600 || pendingRequest) return;
   lastSendAt = now;
 
   const quickReply = getEasterEggResponse(text);
@@ -305,11 +369,14 @@ async function sendMessage(text) {
       return;
     }
 
-    const response = await fetch(API_URL, {
+    pendingRequest = fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text, mode: activeMode }),
     });
+
+    const response = await pendingRequest;
+    pendingRequest = null;
 
     const data = await response.json().catch(() => ({
       error: "Invalid response from server",
@@ -329,6 +396,7 @@ async function sendMessage(text) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    pendingRequest = null;
     await delay(300);
     removeTypingIndicator();
     addMessage({
@@ -345,9 +413,12 @@ async function sendMessage(text) {
 }
 
 function clearActiveChat() {
-  histories[activeMode] = [getWelcomeMessage(activeMode)];
-  saveHistories();
-  renderHistory();
+  const session = getActiveSession();
+  if (session) {
+    session.messages = [getWelcomeMessage(activeMode)];
+    saveSessions();
+    renderSession();
+  }
 }
 
 function downloadActiveChat() {
@@ -374,7 +445,9 @@ async function copyText(text) {
 }
 
 function getActiveChatText() {
-  return histories[activeMode]
+  const session = getActiveSession();
+  if (!session || !session.messages) return "";
+  return session.messages
     .map((message) => `${message.sender.toUpperCase()}: ${message.text}`)
     .join("\n\n");
 }
@@ -556,20 +629,29 @@ function renderHistoryRail() {
   if (!list) return;
 
   list.innerHTML = "";
-  histories[activeMode]
-    .filter((message) => message.sender === "user")
+  const modeData = sessions[activeMode];
+  
+  if (!modeData?.sessions || modeData.sessions.length === 0) {
+    return;
+  }
+
+  modeData.sessions
     .slice(-8)
     .reverse()
-    .forEach((message) => {
+    .forEach((session) => {
       const button = document.createElement("button");
       button.className = "history-item";
+      if (session.id === modeData.activeSessionId) {
+        button.classList.add("active");
+      }
       button.type = "button";
-      button.textContent = message.text.slice(0, 54);
+      button.textContent = session.title.slice(0, 54);
+      button.title = session.title;
       button.addEventListener("click", () => {
-        const index = histories[activeMode].indexOf(message);
-        document
-          .querySelector(`[data-index="${index}"]`)
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        sessions[activeMode].activeSessionId = session.id;
+        saveSessions();
+        renderSession();
+        renderHistoryRail();
       });
       list.appendChild(button);
     });
