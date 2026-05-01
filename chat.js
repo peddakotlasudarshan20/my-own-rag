@@ -3,7 +3,7 @@ const messageInput = document.getElementById("messageInput");
 const messageArea = document.getElementById("messageArea");
 const sendButton = document.getElementById("sendButton");
 
-const API_URL = "http://localhost:5000/chat";
+const API_URL = "https://my-own-rag.vercel.app/api/chat";
 
 function addMessage(text, sender) {
   const message = document.createElement("article");
@@ -84,7 +84,7 @@ async function sendMessage(userMessage) {
     addMessage(data.response || "I don't have that information", "bot");
   } catch (error) {
     removeTypingMessage();
-    addMessage("Could not connect to the server. Please start the backend.", "bot");
+    addMessage("Could not connect to the deployed API. Please try again.", "bot");
   } finally {
     setLoading(false);
     messageInput.focus();

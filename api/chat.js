@@ -1,7 +1,4 @@
-import express from "express";
-import cors from "cors";
 import axios from "axios";
-import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -10,29 +7,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const portfolioPath = path.join(__dirname, "..", "data", "portfolio.json");
 const portfolio = JSON.parse(fs.readFileSync(portfolioPath, "utf8"));
-
-dotenv.config({
-  path: path.join(__dirname, ".env"),
-  quiet: true,
-});
-
-const app = express();
-const PORT = process.env.PORT || 5000;
-const GROQ_MODEL = "llama-3.1-8b-instant";
 const portfolioData = JSON.stringify(portfolio, null, 2);
+const GROQ_MODEL = "llama-3.1-8b-instant";
 
-app.use(cors());
-app.use(express.json());
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-app.get("/", (req, res) => {
-  res.send("Server running");
-});
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
 
-app.post("/chat", async (req, res) => {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Only POST allowed" });
+  }
+
   try {
-    const userMessage = req.body.message;
+    const { message } = req.body;
 
-    if (!userMessage) {
+    if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
 
@@ -46,7 +40,7 @@ ${portfolioData}
 
 If the answer is not in the data, say "I don't have that information".
 
-User question: ${userMessage}
+User question: ${message}
 `;
 
     const response = await axios.post(
@@ -69,26 +63,15 @@ User question: ${userMessage}
     );
 
     const aiResponse =
-      response.data.choices?.[0]?.message?.content || "I don't have that information";
+      response.data.choices?.[0]?.message?.content ||
+      "I don't have that information";
 
-    res.json({ response: aiResponse });
+    return res.status(200).json({ response: aiResponse });
   } catch (error) {
     const statusCode = error.response?.status || 500;
     const errorMessage =
       error.response?.data?.error?.message || "Something went wrong";
 
-    res.status(statusCode).json({ error: errorMessage });
+    return res.status(statusCode).json({ error: errorMessage });
   }
-});
-
-app.use((error, req, res, next) => {
-  if (error instanceof SyntaxError && error.status === 400 && "body" in error) {
-    return res.status(400).json({ error: "Invalid JSON body" });
-  }
-
-  next(error);
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+}
