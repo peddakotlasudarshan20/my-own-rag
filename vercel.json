@@ -1,6 +1,7 @@
 {
   "routes": [
-    { "src": "/api/chat", "dest": "/api/chat.js" },
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "handle": "filesystem" },
     { "src": "/", "dest": "/index.html" }
   ]
 }
