@@ -56,6 +56,28 @@
     "short_term": "Become a strong full-stack developer and secure a top rank",
     "long_term": "Become a professional software engineer"
   },
+  "availability": {
+    "status": "Open to opportunities",
+    "roles": ["Full-time", "Internship", "Freelance"],
+    "client_projects": "Yes, available for client projects and collaborations"
+  },
+  "strengths": [
+    "Strong problem-solving ability",
+    "Quick learner",
+    "Hands-on project experience",
+    "Clean and maintainable code practices"
+  ],
+  "services": [
+    "Full-stack web development",
+    "Frontend UI development",
+    "API integration",
+    "Responsive website design"
+  ],
+  "personality": [
+    "Dedicated",
+    "Consistent learner",
+    "Focused on real-world solutions"
+  ],
   "links": {
     "github": "https://github.com/peddakotlasudarshan20",
     "linkedin": "https://www.linkedin.com/in/sudarshan-peddakotla-6851052a7",
