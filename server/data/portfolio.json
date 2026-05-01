@@ -1,0 +1,65 @@
+{
+  "name": "Peddakotla Sudarshan",
+  "role": "Web Developer",
+  "education": {
+    "qualification": "Diploma in Computer Engineering",
+    "college": "Government Polytechnic, Dharmavaram",
+    "status": "Final Year Completed",
+    "focus": ["Software Development", "Web Technologies", "Computer Networks"]
+  },
+  "skills": {
+    "languages": ["C", "Java", "Python", "JavaScript"],
+    "frontend": ["HTML", "CSS", "JavaScript", "Responsive Design"],
+    "backend": ["Node.js", "Express.js"],
+    "database": ["MongoDB", "Firebase"],
+    "tools": ["Git", "GitHub", "VS Code"],
+    "concepts": ["Data Structures", "Problem Solving", "REST APIs"]
+  },
+  "projects": [
+    {
+      "name": "Mind Bloom",
+      "type": "Web Application",
+      "description": "A mental wellness application designed to help users manage stress and improve mental health through interactive UI and features.",
+      "tech_stack": ["HTML", "CSS", "JavaScript", "Firebase"],
+      "github": "https://github.com/peddakotlasudarshan20/mind-bloom",
+      "live": "https://mindbloom-9b7b5.web.app/"
+    },
+    {
+      "name": "Social Media App",
+      "type": "Full Stack Web Application",
+      "description": "A social media platform with user authentication, posting, and interaction features built using modern web technologies.",
+      "tech_stack": ["React", "Node.js", "Express.js", "MongoDB", "Firebase"],
+      "github": "https://github.com/peddakotlasudarshan20/social-media",
+      "live": "https://social-app-94b55.web.app/"
+    },
+    {
+      "name": "AI Text Summarizer",
+      "type": "AI Web Tool",
+      "description": "A tool that summarizes long text using NLP techniques to improve readability and save time.",
+      "tech_stack": ["JavaScript", "API Integration"],
+      "github": "https://github.com/peddakotlasudarshan20/Text-summarizer"
+    }
+  ],
+  "experience": {
+    "type": "Industrial Training",
+    "company": "Codeon Technologies",
+    "location": "Tirupati",
+    "role": "Trainee",
+    "description": "Worked on web development projects, improved frontend and backend skills, and gained real-world development experience."
+  },
+  "achievements": [
+    "Strong performance in core technical subjects",
+    "Developed multiple real-world projects",
+    "Hands-on experience in full-stack development"
+  ],
+  "goals": {
+    "short_term": "Become a strong full-stack developer and secure a top rank",
+    "long_term": "Become a professional software engineer"
+  },
+  "links": {
+    "github": "https://github.com/peddakotlasudarshan20",
+    "linkedin": "https://www.linkedin.com/in/sudarshan-peddakotla-6851052a7",
+    "portfolio": "https://peddakotlasudarshan20.github.io/"
+  },
+  "about": "I am a dedicated Web Developer with strong interest in building scalable web applications. I focus on clean UI, responsive design, and full-stack development using modern technologies."
+}

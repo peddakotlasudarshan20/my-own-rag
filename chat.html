@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sudarshan Portfolio Chat</title>
+    <link rel="stylesheet" href="chat.css" />
+  </head>
+  <body>
+    <main class="chat-shell">
+      <section class="chat-panel" aria-label="Portfolio chatbot">
+        <header class="chat-header">
+          <div class="bot-avatar" aria-hidden="true">S</div>
+          <div>
+            <h1>Sudarshan AI</h1>
+            <p>Portfolio assistant</p>
+          </div>
+          <span class="status">
+            <span class="status-dot"></span>
+            Online
+          </span>
+        </header>
+
+        <div id="messageArea" class="message-area" aria-live="polite">
+          <article class="message bot-message">
+            <div class="message-bubble">
+              Hi, I can answer questions about Sudarshan's skills, projects,
+              education, experience, goals, and links.
+            </div>
+          </article>
+        </div>
+
+        <form id="chatForm" class="chat-form">
+          <input
+            id="messageInput"
+            type="text"
+            placeholder="Ask about projects, skills, education..."
+            autocomplete="off"
+            required
+          />
+          <button id="sendButton" type="submit" aria-label="Send message">
+            <span>Send</span>
+          </button>
+        </form>
+      </section>
+    </main>
+
+    <script src="chat.js"></script>
+  </body>
+</html>
