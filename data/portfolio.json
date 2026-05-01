@@ -12,7 +12,7 @@
     "frontend": ["HTML", "CSS", "JavaScript", "Responsive Design"],
     "backend": ["Node.js", "Express.js"],
     "database": ["MongoDB", "Firebase"],
-    "tools": ["Git", "GitHub", "VS Code"],
+    "tools": ["Git", "GitHub", "VS Code", "Vercel", "Firebase Hosting"],
     "concepts": ["Data Structures", "Problem Solving", "REST APIs"]
   },
   "projects": [
@@ -21,6 +21,7 @@
       "type": "Web Application",
       "description": "A mental wellness application designed to help users manage stress and improve mental health through interactive UI and features.",
       "tech_stack": ["HTML", "CSS", "JavaScript", "Firebase"],
+      "impact": "Shows ability to build user-focused wellness interfaces with Firebase deployment.",
       "github": "https://github.com/peddakotlasudarshan20/mind-bloom",
       "live": "https://mindbloom-9b7b5.web.app/"
     },
@@ -29,6 +30,7 @@
       "type": "Full Stack Web Application",
       "description": "A social media platform with user authentication, posting, and interaction features built using modern web technologies.",
       "tech_stack": ["React", "Node.js", "Express.js", "MongoDB", "Firebase"],
+      "impact": "Demonstrates full-stack development skills including authentication, backend APIs, and database-backed features.",
       "github": "https://github.com/peddakotlasudarshan20/social-media",
       "live": "https://social-app-94b55.web.app/"
     },
@@ -37,6 +39,7 @@
       "type": "AI Web Tool",
       "description": "A tool that summarizes long text using NLP techniques to improve readability and save time.",
       "tech_stack": ["JavaScript", "API Integration"],
+      "impact": "Highlights API integration skills and practical AI tool building.",
       "github": "https://github.com/peddakotlasudarshan20/Text-summarizer"
     }
   ],
@@ -45,12 +48,28 @@
     "company": "Codeon Technologies",
     "location": "Tirupati",
     "role": "Trainee",
+    "duration": "Industrial training period",
+    "tools_used": ["HTML", "CSS", "JavaScript", "Node.js", "Express.js", "Git", "VS Code"],
+    "responsibilities": [
+      "Worked on web development project tasks",
+      "Improved frontend and backend implementation skills",
+      "Practiced real-world development workflow and code organization"
+    ],
     "description": "Worked on web development projects, improved frontend and backend skills, and gained real-world development experience."
   },
+  "certifications": [
+    {
+      "name": "Portfolio certifications",
+      "status": "To be updated",
+      "description": "Certification details are not finalized yet. Current portfolio strength is based on diploma education, industrial training, and real-world projects."
+    }
+  ],
   "achievements": [
     "Strong performance in core technical subjects",
     "Developed multiple real-world projects",
-    "Hands-on experience in full-stack development"
+    "Hands-on experience in full-stack development",
+    "Built and deployed Firebase-hosted web applications",
+    "Created portfolio-focused AI chatbot using Groq and RAG concepts"
   ],
   "goals": {
     "short_term": "Become a strong full-stack developer and secure a top rank",

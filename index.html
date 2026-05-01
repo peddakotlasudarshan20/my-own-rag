@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sudarshan AI Assistant</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="chat-app" aria-label="Sudarshan AI chatbot">
+        <header class="topbar">
+          <div class="identity">
+            <div class="avatar" aria-hidden="true">S</div>
+            <div>
+              <h1>Sudarshan AI</h1>
+              <p id="modeDescription">Personal portfolio assistant</p>
+            </div>
+          </div>
+
+          <div class="top-actions" aria-label="Chat actions">
+            <button id="shareChat" class="icon-button" type="button" title="Share chat">
+              Share
+            </button>
+            <button id="downloadChat" class="icon-button" type="button" title="Download chat">
+              Download
+            </button>
+            <button id="clearChat" class="icon-button danger" type="button" title="Clear chat">
+              Clear
+            </button>
+          </div>
+        </header>
+
+        <div class="mode-tabs" role="tablist" aria-label="Assistant mode">
+          <button
+            class="mode-tab active"
+            type="button"
+            data-mode="portfolio"
+            aria-selected="true"
+          >
+            Portfolio Mode
+          </button>
+          <button
+            class="mode-tab"
+            type="button"
+            data-mode="general"
+            aria-selected="false"
+          >
+            General AI Mode
+          </button>
+        </div>
+
+        <div id="messageArea" class="message-area" aria-live="polite"></div>
+
+        <form id="chatForm" class="composer">
+          <input
+            id="messageInput"
+            type="text"
+            placeholder="Ask about Sudarshan's projects, skills, or contact links..."
+            autocomplete="off"
+            required
+          />
+          <button id="sendButton" type="submit">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
