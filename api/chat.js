@@ -1,12 +1,24 @@
 import { runGeneralChat, runPortfolioRag } from "./ragChain.js";
 
 const IMAGE_TRIGGER = /^generate\s+(an\s+|a\s+)?image\s+of\s+/i;
+const SAFE_ERROR_REPLY = "Something went wrong. Please try again.";
 
 function getImagePrompt(message) {
   return message.replace(IMAGE_TRIGGER, "").trim();
 }
 
 function sendAiResponse(res, statusCode, reply, extra = {}) {
+  if (reply && typeof reply === "object") {
+    const finalReply = reply.reply || "I don't have that information";
+
+    return res.status(statusCode).json({
+      response: finalReply,
+      reply: finalReply,
+      ...("debug" in reply ? { debug: reply.debug } : {}),
+      ...extra,
+    });
+  }
+
   return res.status(statusCode).json({
     response: reply,
     reply,
@@ -28,7 +40,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message, mode = "portfolio" } = req.body || {};
+    const { message, mode = "portfolio", debug = false } = req.body || {};
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Message is required" });
@@ -50,14 +62,14 @@ export default async function handler(req, res) {
     }
 
     if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({ error: "Groq API key is missing" });
+      return sendAiResponse(res, 200, SAFE_ERROR_REPLY);
     }
 
     const selectedMode = mode === "general" ? "general" : "portfolio";
     const reply =
       selectedMode === "general"
         ? await runGeneralChat(message)
-        : await runPortfolioRag(message);
+        : await runPortfolioRag(message, { debug: Boolean(debug) });
 
     return sendAiResponse(res, 200, reply || "I don't have that information");
   } catch (error) {
@@ -72,6 +84,6 @@ export default async function handler(req, res) {
       message: errorMessage,
     });
 
-    return res.status(statusCode).json({ error: errorMessage });
+    return sendAiResponse(res, 200, SAFE_ERROR_REPLY);
   }
 }
