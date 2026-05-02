@@ -10,6 +10,7 @@ import { RunnableLambda, RunnableSequence } from "@langchain/core/runnables";
 import { Document } from "@langchain/core/documents";
 import { Embeddings } from "@langchain/core/embeddings";
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
+import { getPortfolioData } from "./portfolioFetcher.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,15 +19,17 @@ const portfolioPath = path.join(rootDir, "data", "portfolio.json");
 
 const GROQ_MODEL = "llama-3.1-8b-instant";
 const HUGGINGFACE_MODEL = "sentence-transformers/all-MiniLM-L6-v2";
-const TOP_K_CONTEXT_CHUNKS = 3;
-const CANDIDATE_CONTEXT_CHUNKS = 15;
-const MAX_ACCEPTED_DISTANCE = 1.45;
+const TOP_K_CONTEXT_CHUNKS = 7;
+const CANDIDATE_CONTEXT_CHUNKS = 10;
+const MAX_ACCEPTED_DISTANCE = 2;
 const LOCAL_EMBEDDING_DIMENSIONS = 384;
+const VECTOR_STORE_REFRESH_MS = 15 * 60 * 1000;
 const NO_CONTEXT_REPLY = "I don't have that information based on available data.";
 const SAFE_ERROR_REPLY = "Something went wrong. Please try again.";
 const IS_DEVELOPMENT = process.env.NODE_ENV !== "production";
 
 let embeddingsInstance;
+let vectorStoreState;
 let vectorStorePromise;
 let activeFaissIndexPath;
 
@@ -75,10 +78,10 @@ function createEmbeddings() {
         apiKey,
         model: HUGGINGFACE_MODEL,
       });
-      activeFaissIndexPath = path.join(rootDir, "data", "faiss-index-hf-api");
+      activeFaissIndexPath = path.join(rootDir, "data", "faiss-index-live-hf-api");
     } else {
       embeddingsInstance = new LocalFallbackEmbeddings();
-      activeFaissIndexPath = path.join(rootDir, "data", "faiss-index-hf");
+      activeFaissIndexPath = path.join(rootDir, "data", "faiss-index-live-hf");
     }
   }
 
@@ -144,7 +147,7 @@ function getQuestionIntent(question) {
   )?.type;
 }
 
-function createDocument(pageContent, metadata) {
+function createDocument(pageContent, metadata, source = "live-portfolio") {
   return new Document({
     pageContent: pageContent
       .split("\n")
@@ -152,7 +155,7 @@ function createDocument(pageContent, metadata) {
       .filter(Boolean)
       .join("\n"),
     metadata: {
-      source: "portfolio.json",
+      source,
       ...metadata,
     },
   });
@@ -187,140 +190,100 @@ function logRetrieval(question, chunks) {
   );
 }
 
-async function loadData() {
-  const rawPortfolio = await fs.readFile(portfolioPath, "utf8");
-  return JSON.parse(rawPortfolio);
-}
-
-function buildSkillDocuments(skills = {}) {
+function buildSkillDocuments(skills = {}, source = "live-portfolio") {
   const skillGroups = Object.entries(skills);
 
-  return skillGroups.map(([group, values]) =>
+  if (skillGroups.length === 0) {
+    return [];
+  }
+
+  return [
     createDocument(
       [
-        `Skills section: ${group}`,
-        `${group} skills: ${toList(values)}.`,
+        "Skills",
+        ...skillGroups.map(([group, values]) => `${group}: ${toList(values)}.`),
       ].join("\n"),
-      { type: "skills", section: group },
+      { type: "skills", section: "skills" },
+      source,
     ),
+  ];
+}
+
+function projectTitle(project) {
+  return project.title || project.name || "Untitled project";
+}
+
+function projectTechStack(project) {
+  return project.techStack || project.tech_stack || [];
+}
+
+function projectLink(project, key) {
+  return project.links?.[key] || project[key] || "";
+}
+
+function buildLinksDocument(links = {}, source = "live-portfolio") {
+  const linkEntries = Object.entries(links)
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`);
+
+  if (linkEntries.length === 0) {
+    return [];
+  }
+
+  return [
+    createDocument(
+      ["Links", ...linkEntries].join("\n"),
+      { type: "links", section: "links" },
+      source,
+    ),
+  ];
+}
+
+function buildAboutDocument(portfolio) {
+  return createDocument(
+    [
+      "About Sudarshan",
+      `Name: ${portfolio.name}`,
+      `Role: ${portfolio.role}`,
+      `About: ${portfolio.about}`,
+    ].join("\n"),
+    { type: "about", section: "profile" },
+    portfolio.source,
   );
 }
 
-function buildProjectDocuments(projects = []) {
+function buildProjectDocuments(projects = [], source = "live-portfolio") {
   return projects.map((project) =>
     createDocument(
       [
-        `Project: ${project.name}`,
-        `Type: ${project.type}`,
+        `Project: ${projectTitle(project)}`,
         `Description: ${project.description}`,
-        `Tech stack: ${toList(project.tech_stack)}`,
-        `Impact: ${project.impact}`,
-        project.github ? `GitHub: ${project.github}` : "",
-        project.live ? `Live: ${project.live}` : "",
+        `Tech stack: ${toList(projectTechStack(project))}`,
+        projectLink(project, "github") ? `GitHub: ${projectLink(project, "github")}` : "",
+        projectLink(project, "live") ? `Live: ${projectLink(project, "live")}` : "",
       ].join("\n"),
-      { type: "project", project: project.name },
+      { type: "project", project: projectTitle(project) },
+      source,
     ),
   );
 }
 
 function buildPortfolioDocuments(portfolio) {
   return [
-    createDocument(
-      [
-        `About Sudarshan`,
-        `Name: ${portfolio.name}`,
-        `Role: ${portfolio.role}`,
-        `About: ${portfolio.about}`,
-        `Personality: ${toList(portfolio.personality)}`,
-        `Strengths: ${toList(portfolio.strengths)}`,
-      ].join("\n"),
-      { type: "about", section: "profile" },
-    ),
-    createDocument(
-      [
-        `Education`,
-        `Qualification: ${portfolio.education?.qualification}`,
-        `College: ${portfolio.education?.college}`,
-        `Status: ${portfolio.education?.status}`,
-        `Focus: ${toList(portfolio.education?.focus)}`,
-      ].join("\n"),
-      { type: "education", section: "education" },
-    ),
-    ...buildSkillDocuments(portfolio.skills),
-    ...buildProjectDocuments(portfolio.projects),
-    createDocument(
-      [
-        `Experience`,
-        `Type: ${portfolio.experience?.type}`,
-        `Company: ${portfolio.experience?.company}`,
-        `Location: ${portfolio.experience?.location}`,
-        `Role: ${portfolio.experience?.role}`,
-        `Duration: ${portfolio.experience?.duration}`,
-        `Tools used: ${toList(portfolio.experience?.tools_used)}`,
-        `Responsibilities: ${toList(portfolio.experience?.responsibilities)}`,
-        `Description: ${portfolio.experience?.description}`,
-      ].join("\n"),
-      { type: "experience", section: "experience" },
-    ),
-    createDocument(
-      [
-        `Availability and services`,
-        `Availability status: ${portfolio.availability?.status}`,
-        `Roles: ${toList(portfolio.availability?.roles)}`,
-        `Client projects: ${portfolio.availability?.client_projects}`,
-        `Services: ${toList(portfolio.services)}`,
-        `Goals: short term - ${portfolio.goals?.short_term}; long term - ${portfolio.goals?.long_term}`,
-      ].join("\n"),
-      { type: "availability", section: "availability" },
-    ),
-    createDocument(
-      [
-        `Links`,
-        `GitHub: ${portfolio.links?.github}`,
-        `LinkedIn: ${portfolio.links?.linkedin}`,
-        `Portfolio: ${portfolio.links?.portfolio}`,
-      ].join("\n"),
-      { type: "links", section: "links" },
-    ),
-    createDocument(
-      [
-        `Achievements and certifications`,
-        `Achievements: ${toList(portfolio.achievements)}`,
-        `Certifications: ${toList(
-          portfolio.certifications?.map(
-            (certification) =>
-              `${certification.name} - ${certification.status}. ${certification.description}`,
-          ),
-        )}`,
-      ].join("\n"),
-      { type: "achievements", section: "achievements" },
-    ),
+    buildAboutDocument(portfolio),
+    ...buildSkillDocuments(portfolio.skills, portfolio.source),
+    ...buildProjectDocuments(portfolio.projects, portfolio.source),
+    ...buildLinksDocument(portfolio.links, portfolio.source),
   ];
-}
-
-async function hasPersistedIndex() {
-  try {
-    await fs.access(path.join(activeFaissIndexPath, "faiss.index"));
-    await fs.access(path.join(activeFaissIndexPath, "docstore.json"));
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function buildVectorStore() {
   const embeddings = createEmbeddings();
 
-  if (await hasPersistedIndex()) {
-    try {
-      return await FaissStore.load(activeFaissIndexPath, embeddings);
-    } catch (error) {
-      console.error("FAISS load failed:", error);
-    }
-  }
-
   try {
-    const portfolio = await loadData();
+    const portfolio = await getPortfolioData(portfolioPath, {
+      ttlMs: VECTOR_STORE_REFRESH_MS,
+    });
     const documents = buildPortfolioDocuments(portfolio);
     const vectorStore = await FaissStore.fromDocuments(documents, embeddings);
 
@@ -331,7 +294,12 @@ async function buildVectorStore() {
       console.warn("FAISS persistence skipped:", error.message);
     }
 
-    return vectorStore;
+    return {
+      vectorStore,
+      builtAt: Date.now(),
+      source: portfolio.source,
+      fetchedAt: portfolio.fetchedAt,
+    };
   } catch (error) {
     console.error("FAISS build failed:", error);
     throw new Error("Vector store initialization failed");
@@ -339,11 +307,31 @@ async function buildVectorStore() {
 }
 
 async function getRetriever() {
-  if (!vectorStorePromise) {
-    vectorStorePromise = buildVectorStore();
+  const now = Date.now();
+
+  if (vectorStoreState && now - vectorStoreState.builtAt < VECTOR_STORE_REFRESH_MS) {
+    return vectorStoreState.vectorStore;
   }
 
-  return vectorStorePromise;
+  if (!vectorStorePromise) {
+    vectorStorePromise = buildVectorStore()
+      .then((state) => {
+        vectorStoreState = state;
+        return vectorStoreState;
+      })
+      .finally(() => {
+        vectorStorePromise = null;
+      });
+  }
+
+  if (vectorStoreState) {
+    vectorStorePromise.catch((error) => {
+      console.error("Background vector refresh failed:", error);
+    });
+    return vectorStoreState.vectorStore;
+  }
+
+  return (await vectorStorePromise).vectorStore;
 }
 
 async function retrieveContext(question) {
