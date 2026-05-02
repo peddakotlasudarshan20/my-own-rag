@@ -1,42 +1,85 @@
+import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { ChatGroq } from "@langchain/groq";
-import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/huggingface_transformers";
+import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { RunnableLambda, RunnableSequence } from "@langchain/core/runnables";
 import { Document } from "@langchain/core/documents";
+import { Embeddings } from "@langchain/core/embeddings";
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
 const portfolioPath = path.join(rootDir, "data", "portfolio.json");
-const faissIndexPath = path.join(rootDir, "data", "faiss-index-hf");
 
 const GROQ_MODEL = "llama-3.1-8b-instant";
-const HUGGINGFACE_MODEL = "Xenova/all-MiniLM-L6-v2";
+const HUGGINGFACE_MODEL = "sentence-transformers/all-MiniLM-L6-v2";
 const TOP_K_CONTEXT_CHUNKS = 3;
 const CANDIDATE_CONTEXT_CHUNKS = 15;
 const MAX_ACCEPTED_DISTANCE = 1.45;
+const LOCAL_EMBEDDING_DIMENSIONS = 384;
 const NO_CONTEXT_REPLY = "I don't have that information based on available data.";
 const SAFE_ERROR_REPLY = "Something went wrong. Please try again.";
 const IS_DEVELOPMENT = process.env.NODE_ENV !== "production";
 
 let embeddingsInstance;
 let vectorStorePromise;
+let activeFaissIndexPath;
+
+class LocalFallbackEmbeddings extends Embeddings {
+  constructor() {
+    super({});
+  }
+
+  async embedDocuments(texts) {
+    return texts.map((text) => this.embedText(text));
+  }
+
+  async embedQuery(text) {
+    return this.embedText(text);
+  }
+
+  embedText(text) {
+    const vector = new Array(LOCAL_EMBEDDING_DIMENSIONS).fill(0);
+    const tokens = String(text)
+      .toLowerCase()
+      .replace(/https?:\/\/\S+/g, " ")
+      .replace(/[^a-z0-9+#.]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length > 1);
+
+    for (const token of tokens) {
+      const hash = crypto.createHash("sha256").update(token).digest();
+      const index = hash.readUInt32BE(0) % LOCAL_EMBEDDING_DIMENSIONS;
+      vector[index] += hash[4] % 2 === 0 ? 1 : -1;
+    }
+
+    const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+    return magnitude === 0 ? vector : vector.map((value) => value / magnitude);
+  }
+}
 
 function createEmbeddings() {
   if (!embeddingsInstance) {
-    embeddingsInstance = new HuggingFaceTransformersEmbeddings({
-      model: HUGGINGFACE_MODEL,
-      batchSize: 16,
-      pipelineOptions: {
-        pooling: "mean",
-        normalize: true,
-      },
-    });
+    const apiKey =
+      process.env.HUGGINGFACEHUB_API_KEY ||
+      process.env.HUGGINGFACE_API_KEY ||
+      process.env.HF_TOKEN;
+
+    if (apiKey) {
+      embeddingsInstance = new HuggingFaceInferenceEmbeddings({
+        apiKey,
+        model: HUGGINGFACE_MODEL,
+      });
+      activeFaissIndexPath = path.join(rootDir, "data", "faiss-index-hf-api");
+    } else {
+      embeddingsInstance = new LocalFallbackEmbeddings();
+      activeFaissIndexPath = path.join(rootDir, "data", "faiss-index-hf");
+    }
   }
 
   return embeddingsInstance;
@@ -257,8 +300,8 @@ function buildPortfolioDocuments(portfolio) {
 
 async function hasPersistedIndex() {
   try {
-    await fs.access(path.join(faissIndexPath, "faiss.index"));
-    await fs.access(path.join(faissIndexPath, "docstore.json"));
+    await fs.access(path.join(activeFaissIndexPath, "faiss.index"));
+    await fs.access(path.join(activeFaissIndexPath, "docstore.json"));
     return true;
   } catch {
     return false;
@@ -270,7 +313,7 @@ async function buildVectorStore() {
 
   if (await hasPersistedIndex()) {
     try {
-      return await FaissStore.load(faissIndexPath, embeddings);
+      return await FaissStore.load(activeFaissIndexPath, embeddings);
     } catch (error) {
       console.error("FAISS load failed:", error);
     }
@@ -282,8 +325,8 @@ async function buildVectorStore() {
     const vectorStore = await FaissStore.fromDocuments(documents, embeddings);
 
     try {
-      await fs.mkdir(faissIndexPath, { recursive: true });
-      await vectorStore.save(faissIndexPath);
+      await fs.mkdir(activeFaissIndexPath, { recursive: true });
+      await vectorStore.save(activeFaissIndexPath);
     } catch (error) {
       console.warn("FAISS persistence skipped:", error.message);
     }
