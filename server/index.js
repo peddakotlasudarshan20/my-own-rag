@@ -1,15 +1,12 @@
 import express from "express";
 import cors from "cors";
-import axios from "axios";
 import dotenv from "dotenv";
-import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { runPortfolioRag } from "../api/ragChain.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const portfolioPath = path.join(__dirname, "..", "data", "portfolio.json");
-const portfolio = JSON.parse(fs.readFileSync(portfolioPath, "utf8"));
 
 dotenv.config({
   path: path.join(__dirname, ".env"),
@@ -18,8 +15,6 @@ dotenv.config({
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const GROQ_MODEL = "llama-3.1-8b-instant";
-const portfolioData = JSON.stringify(portfolio, null, 2);
 
 app.use(cors());
 app.use(express.json());
@@ -30,9 +25,9 @@ app.get("/", (req, res) => {
 
 app.post("/chat", async (req, res) => {
   try {
-    const userMessage = req.body.message;
+    const { message } = req.body || {};
 
-    if (!userMessage) {
+    if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Message is required" });
     }
 
@@ -40,58 +35,20 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ error: "Groq API key is missing" });
     }
 
-    const prompt = `
-You are a portfolio assistant for Sudarshan.
+    const reply = await runPortfolioRag(message);
 
-Use the provided data as the primary source.
-If the exact answer is not available:
-- infer logically based on skills, projects, education, availability, and experience
-- give realistic and professional answers
-- do NOT hallucinate fake companies, achievements, certifications, clients, salaries, contact details, or experience
-- if a question asks for information that cannot be inferred safely, say "I don't have that information"
-
-Keep answers natural, concise, confident, and helpful. Prefer 2-4 short sentences unless the user asks for details.
-For common intent questions, answer directly:
-- client projects: say yes and mention availability plus relevant services
-- work type: summarize services and project experience
-- experience: mention industrial training, hands-on projects, and full-stack exposure without overstating seniority
-- contact: share GitHub, LinkedIn, and portfolio links
-
-Portfolio data:
-${portfolioData}
-
-User question: ${userMessage}
-`;
-
-    const response = await axios.post(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        model: GROQ_MODEL,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    const aiResponse =
-      response.data.choices?.[0]?.message?.content || "I don't have that information";
-
-    res.json({ response: aiResponse });
+    return res.json({
+      response: reply || "I don't have that information",
+      reply: reply || "I don't have that information",
+    });
   } catch (error) {
-    const statusCode = error.response?.status || 500;
+    const statusCode = error.status || error.response?.status || 500;
     const errorMessage =
-      error.response?.data?.error?.message || "Something went wrong";
+      error.response?.data?.error?.message ||
+      error.message ||
+      "Something went wrong";
 
-    res.status(statusCode).json({ error: errorMessage });
+    return res.status(statusCode).json({ error: errorMessage });
   }
 });
 
